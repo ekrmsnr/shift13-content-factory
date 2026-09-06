@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="tr">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>SHIFT_13 · İnsan Deneyimi A.Ş.</title>
+ <meta name="description" content="Pixel içerik üretim fabrikası"><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+ <header class="topbar">
+  <div class="brand"><span class="lamp"></span><div><strong>SHIFT_13</strong><small>İNSAN DENEYİMİ A.Ş. · GECE VARDİYASI</small></div></div>
+  <nav aria-label="Ana bölümler"><button class="nav active" data-view="factory">Fabrika</button><button class="nav" data-view="episodes">Vakalar</button><button class="nav" data-view="comments">Yorum nöbeti <span id="consult-badge"></span></button><button class="nav" data-view="connections">Bağlantılar</button></nav>
+  <button id="pause-button" class="quiet-button">Vardiyayı durdur</button>
+ </header>
+ <main>
+  <section id="view-factory" class="view active">
+   <div class="hud">
+    <div><small>BUGÜN</small><strong id="today-count">0 / 1</strong></div><div><small>ÜRETİMDE</small><strong id="working-count">0</strong></div><div><small>ONAY BEKLİYOR</small><strong id="approval-count">0</strong></div><div><small>YAYINLANAN</small><strong id="published-count">0</strong></div><div><small>FABRİKA HÂLİ</small><strong id="factory-status">NORMAL</strong></div>
+   </div>
+   <div class="game-layout">
+    <section class="world-card" aria-label="Canlı pixel fabrika">
+     <div class="world-toolbar"><span>KAT B2 · CANLI GÖRÜNÜM</span><button id="new-episode">+ YENİ VAKA</button></div>
+     <canvas id="factory-canvas" width="960" height="600" tabindex="0" aria-describedby="factory-help"></canvas>
+     <p id="factory-help" class="sr-only">İstasyonları açmak için aşağıdaki düğmeleri veya fabrika haritasını kullan.</p>
+     <div id="station-buttons" class="station-buttons" aria-label="Fabrika istasyonları"></div>
+     <div id="factory-announcer" class="sr-only" aria-live="polite"></div>
+     <div class="ticker"><span>VARDİYA NOTU</span><p id="ticker-text">Üretim bandı vaka bekliyor.</p></div>
+    </section>
+    <aside class="side-card"><div class="side-head"><span>ÜRETİM KUYRUĞU</span><button id="queue-new" aria-label="Yeni vaka">+</button></div><div id="queue-list" class="queue-list"></div><div id="quick-panel" class="quick-panel"></div></aside>
+   </div>
+  </section>
+  <section id="view-episodes" class="view"><div class="page-head"><div><small>ARŞİV VE KURGU</small><h1>Vaka dosyaları</h1></div><button class="primary" data-action="new">Yeni vaka aç</button></div><div id="episode-grid" class="episode-grid"></div></section>
+  <section id="view-comments" class="view"><div class="page-head"><div><small>HALKLA İLİŞKİLER GECE NÖBETİ</small><h1>Rutin cevaplar otomatik, tereddütte amir masası</h1></div><button id="sync-button" class="primary">Hesapları tara</button></div><div class="comment-layout"><div id="comment-list" class="comment-list"></div><aside id="comment-detail" class="detail-card empty">Bir yorum seç.</aside></div></section>
+  <section id="view-connections" class="view"><div class="page-head"><div><small>ANAHTAR KASASI</small><h1>Bağlantılar ve vardiya ayarları</h1></div><span class="privacy-note">Anahtarlar yalnızca bu Mac'te şifreli saklanır.</span></div><div id="connections-content"></div></section>
+ </main>
+ <dialog id="main-dialog"><div id="dialog-content"></div><button id="dialog-close" class="dialog-close" aria-label="Pencereyi kapat">×</button></dialog>
+ <div id="toast" class="toast" role="status" aria-live="polite"></div>
+ <script type="module" src="/app.js"></script>
+</body>
+</html>

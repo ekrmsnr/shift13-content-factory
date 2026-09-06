@@ -1,0 +1,21 @@
+{
+  "name": "shift13-factory",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "İnsan Deneyimi A.Ş. — yerel içerik üretim fabrikası",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --env-file-if-exists=.env --watch server/index.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "0.1.80",
+    "fflate": "0.8.3"
+  }
+}

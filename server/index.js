@@ -1,0 +1,11 @@
+import { resolve } from 'node:path';
+import { createStore } from './store.js';
+import { Factory } from './factory.js';
+import { startServer } from './http.js';
+import { startWorker } from './worker.js';
+const data=resolve(process.env.SHIFT13_DATA||'data'),port=Number(process.env.PORT||4313),host=process.env.HOST||'127.0.0.1';
+const store=createStore(data),factory=new Factory(store);factory.recover();
+if(!store.all('episodes').length)factory.create({ideaIndex:0});
+const server=await startServer(factory,{port,host});const stopWorker=startWorker(factory);
+console.log(`SHIFT_13 hazır: http://${host}:${server.address().port}`);
+async function stop(){stopWorker();await new Promise(r=>server.close(r));store.close();process.exit(0);}process.on('SIGINT',stop);process.on('SIGTERM',stop);

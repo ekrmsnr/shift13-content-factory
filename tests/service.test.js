@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createStore } from '../server/store.js';
+import { Factory } from '../server/factory.js';
+const setup=()=>{const dir=mkdtempSync(join(tmpdir(),'shift-factory-'));const store=createStore(dir);const f=new Factory(store);return {dir,store,f,close(){store.close();rmSync(dir,{recursive:true});}};};
+test('queued jobs persist and interrupted jobs recover without silent publication',()=>{const t=setup();try{let e=t.f.create({});t.f.queue(e.id);assert.equal(t.f.episode(e.id).status,'queued');t.store.put('episodes',{...e,status:'rendering'});t.f.recover();assert.equal(t.f.episode(e.id).status,'failed');assert.match(t.f.episode(e.id).error,/kesildi/);}finally{t.close();}});
+test('cannot approve nonexistent media and duplicate queue is rejected',()=>{const t=setup();try{const e=t.f.create({});t.f.queue(e.id);assert.throws(()=>t.f.queue(e.id));assert.throws(()=>t.f.approve(e.id));}finally{t.close();}});
+test('connection readiness does not invent connected accounts or expose secrets',()=>{const t=setup();try{t.store.setSecret('gemini','a-key');const state=t.f.state();assert.ok(!JSON.stringify(state).includes('a-key'));assert.equal(state.connections.find(c=>c.id==='tiktok').status,'manual');assert.equal(state.analytics.views,null);}finally{t.close();}});
+test('manually imported routine comment is not claimed sent',()=>{const t=setup();try{const c=t.f.addComment({text:'Miro aynı ben 😂',platform:'youtube',author:'test'});assert.equal(c.status,'draft');assert.equal(c.source,'manual');assert.throws(()=>t.f.resolveComment(c.id,{action:'send'}));assert.equal(t.f.resolveComment(c.id,{action:'skip'}).status,'ignored');}finally{t.close();}});
+test('settings reject unsafe URLs and unbounded costs',()=>{const t=setup();try{assert.throws(()=>t.f.saveSettings({aiMonthlyLimitUSD:-1}));assert.throws(()=>t.f.saveSettings({publicMediaBaseUrl:'http://127.0.0.1:9999'}));assert.throws(()=>t.f.saveSettings({youtubeVisibility:'unknown'}));}finally{t.close();}});
+test('legacy settings migrate to the supported Gemini model without losing user choices',()=>{const dir=mkdtempSync(join(tmpdir(),'shift-settings-'));const store=createStore(dir);try{store.put('settings',{id:'main',geminiModel:'gemini-3.8-flash',autoProduction:true,dailyHour:'23:45'});const f=new Factory(store);assert.equal(f.settings.geminiModel,'gemini-3.7-flash');assert.equal(f.settings.settingsSchemaVersion,2);assert.equal(f.settings.autoProduction,true);assert.equal(f.settings.dailyHour,'23:45');}finally{store.close();rmSync(dir,{recursive:true});}});
