@@ -6,3 +6,6 @@ data/
 coverage/
 *.log
 
+
+# Flow/Veo ham klipleri
+*.mp4

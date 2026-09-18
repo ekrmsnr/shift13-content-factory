@@ -15,10 +15,11 @@ if (major < 24) failures.push(`Node.js 24+ gerekli; bulunan sürüm ${process.ve
 for (const file of required) if (!existsSync(join(root, file))) failures.push(`Eksik dosya: ${file}`);
 
 function findBinary(name) {
-  const homebrew = `/opt/homebrew/bin/${name}`;
-  const binary = existsSync(homebrew) ? homebrew : name;
+  const override = process.env[`${name.toUpperCase()}_PATH`];
+  const brew = [`/opt/homebrew/bin/${name}`, `/usr/local/bin/${name}`].find(existsSync);
+  const binary = override || brew || name;
   const result = spawnSync(binary, ['-version'], { encoding: 'utf8' });
-  if (result.status !== 0) failures.push(`${name} bulunamadı. macOS için: brew install ffmpeg`);
+  if (result.status !== 0) failures.push(`${name} bulunamadı. macOS için: brew install ffmpeg (ya da .env içinde ${name.toUpperCase()}_PATH)`);
   return result.status === 0 ? (result.stdout.split('\n')[0] || binary) : null;
 }
 

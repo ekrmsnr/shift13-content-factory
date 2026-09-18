@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -56,7 +56,7 @@ try {
   episode = result.value.episode;
 
   const videoPath = join(factory.artifactDir(episode), episode.artifacts.video);
-  const probe = spawnSync('/opt/homebrew/bin/ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name,codec_type', '-of', 'json', videoPath], { encoding: 'utf8' });
+  const probe = spawnSync(process.env.FFPROBE_PATH || ['/opt/homebrew/bin/ffprobe', '/usr/local/bin/ffprobe'].find(existsSync) || 'ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name,codec_type', '-of', 'json', videoPath], { encoding: 'utf8' });
   assert.equal(probe.status, 0, probe.stderr);
   const streams = JSON.parse(probe.stdout).streams;
   assert.ok(streams.some(stream => stream.codec_name === 'h264' && stream.codec_type === 'video'));
