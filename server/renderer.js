@@ -5,17 +5,17 @@ import { mkdir, mkdtemp, open, rename, rm, stat, writeFile } from 'node:fs/promi
 import { join } from 'node:path';
 import { drawEpisodeFrame } from '../public/pixel-scene.js';
 
-const WIDTH = 1080;
-const HEIGHT = 1920;
-const FPS = 24;
+export const WIDTH = 1080;
+export const HEIGHT = 1920;
+export const FPS = 24;
 const NATIVE_WIDTH = 270;
 const NATIVE_HEIGHT = 480;
 const SHOT_HEIGHT = 274;
 
-function abortError() { return new DOMException('Video üretimi iptal edildi.', 'AbortError'); }
-function checkAbort(signal) { if (signal?.aborted) throw abortError(); }
+export function abortError() { return new DOMException('Video üretimi iptal edildi.', 'AbortError'); }
+export function checkAbort(signal) { if (signal?.aborted) throw abortError(); }
 
-function validateEpisode(episode) {
+export function validateEpisode(episode) {
   if (!episode || typeof episode !== 'object' || !episode.id) throw new Error('Geçerli bir bölüm kimliği gerekli.');
   const scenes = episode.script?.scenes;
   if (!Array.isArray(scenes) || scenes.length < 1 || scenes.length > 20) throw new Error('Bölümde 1–20 sahne olmalı.');
@@ -34,7 +34,7 @@ function timestamp(seconds) {
   return `${String(Math.floor(milliseconds / 3600000)).padStart(2, '0')}:${String(Math.floor(milliseconds / 60000) % 60).padStart(2, '0')}:${String(Math.floor(milliseconds / 1000) % 60).padStart(2, '0')},${String(milliseconds % 1000).padStart(3, '0')}`;
 }
 
-function subtitlesFor(scenes) {
+export function subtitlesFor(scenes) {
   let start = 0;
   return scenes.map((scene, index) => {
     const end = start + scene.duration;
@@ -46,7 +46,7 @@ function subtitlesFor(scenes) {
 
 // A small original mechanical score: warm bass, muted arpeggio, typewriter ticks and scene foley.
 // Audio is synthesized in bounded chunks, without external samples, voices or licensed music.
-async function writeSoundtrack(path, episode, duration, signal) {
+export async function writeSoundtrack(path, episode, duration, signal) {
   const sampleRate = 48000;
   const sampleCount = Math.round(sampleRate * duration);
   const header = Buffer.alloc(44);
@@ -129,8 +129,17 @@ function decodeSpecialShot(ffmpeg, path, frames) {
   };
 }
 
-/** Create a complete, local 9:16 episode package; progress reaches 100 only after finalization. */
-export async function renderEpisode(episode, outputDir, { onProgress, signal, specialClip = episode?.specialClip } = {}) {
+/** Route an episode to the engine its mode asks for; progress reaches 100 only after finalization. */
+export async function renderEpisode(episode, outputDir, options = {}) {
+  if (episode?.mode === 'clips') {
+    const { renderClipEpisode } = await import('./clip-renderer.js');
+    return renderClipEpisode(episode, outputDir, options);
+  }
+  return renderPixelEpisode(episode, outputDir, options);
+}
+
+/** Create a complete, local 9:16 episode package from the built-in pixel engine. */
+export async function renderPixelEpisode(episode, outputDir, { onProgress, signal, specialClip = episode?.specialClip } = {}) {
   checkAbort(signal);
   const duration = validateEpisode(episode);
   let specialShot;
@@ -162,7 +171,7 @@ export async function renderEpisode(episode, outputDir, { onProgress, signal, sp
     await writeSoundtrack(join(temporary, 'soundtrack.wav'), episode, duration, signal);
     progress(3);
     checkAbort(signal);
-    const ffmpeg = process.env.FFMPEG_PATH || (existsSync('/opt/homebrew/bin/ffmpeg') ? '/opt/homebrew/bin/ffmpeg' : 'ffmpeg');
+    const ffmpeg = process.env.FFMPEG_PATH || ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg'].find(existsSync) || 'ffmpeg';
     const args = ['-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
       '-f', 'rawvideo', '-pixel_format', 'rgba', '-video_size', `${NATIVE_WIDTH}x${NATIVE_HEIGHT}`, '-framerate', String(FPS), '-i', 'pipe:0',
       '-i', join(temporary, 'soundtrack.wav'),

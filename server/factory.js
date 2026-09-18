@@ -47,5 +47,8 @@ export class Factory {
   e=this.store.all('episodes').find(e=>e.status==='publish_queued'||e.status==='scheduled'&&Date.parse(e.scheduledAt)<=Date.now());if(e){const{publishEpisode}=await import('./providers.js');await publishEpisode(this,e);return;}
   const c=this.store.all('comments').find(c=>c.status==='approved'||this.settings.autoReplies&&c.status==='ready');if(c){const{sendReply}=await import('./providers.js');await sendReply(this,c);}
  }finally{this.busy=false;}}
+ assertSceneClipTarget(id,index){const e=this.episode(id);if(!['draft','failed','rejected','awaiting_approval','approved'].includes(e.status))throw new AppError('Bu aşamada sahne klibi değiştirilemez.',409);if(!Number.isInteger(index)||index<0||index>=e.script.scenes.length)throw new AppError('Sahne numarası geçersiz.');return e;}
+ setSceneClip(id,index,path){const e=this.assertSceneClipTarget(id,index);const revised=this.edit(id,{title:e.title});const clips=[...(Array.isArray(e.sceneClips)?e.sceneClips:[])];while(clips.length<e.script.scenes.length)clips.push(null);clips[index]=path;const result=this.save({...revised,sceneClips:clips,mode:path||clips.some(Boolean)?'clips':'pixel'});this.changed(path?'import':'edited',path?`${index+1}. sahnenin videosu yüklendi.`:`${index+1}. sahnenin videosu kaldırıldı.`,id);return result;}
+ sceneClipPath(id,index){return join(this.store.dir,'clips',id,`${index}.mp4`);}
  cancel(id){const e=this.episode(id);if(e.status==='queued'){this.save({...e,status:'draft',progress:0});this.changed('cancel','Üretim sırası iptal edildi.',id);return;}if(['rendering','scripting'].includes(e.status)&&this.controller){this.controller.abort();return;}throw new AppError('Bu vaka için çalışan üretim yok.',409);}
 }

@@ -51,6 +51,11 @@ export async function startServer(factory,{port=4313,host='127.0.0.1'}={}){
    if(req.method==='POST'&&url.pathname==='/api/sync')return send(res,200,await syncAccounts(factory));
    if(req.method==='POST'&&url.pathname==='/api/comments'){return send(res,201,{comment:factory.addComment(await body(req))});}
    m=url.pathname.match(/^\/api\/comments\/([a-zA-Z0-9:_-]+)\/resolve$/);if(m&&req.method==='POST')return send(res,200,{comment:factory.resolveComment(m[1],await body(req))});
+   m=url.pathname.match(/^\/api\/episodes\/([0-9a-f-]+)\/scene-clip\/(\d{1,2})$/i);
+   if(m&&['PUT','DELETE'].includes(req.method)){const id=m[1],index=Number(m[2]),path=factory.sceneClipPath(id,index);
+    factory.assertSceneClipTarget(id,index);
+    if(req.method==='DELETE'){const episode=factory.setSceneClip(id,index,null);await rm(path,{force:true});return send(res,200,{episode});}
+    await saveUpload(req,path);return send(res,200,{episode:factory.setSceneClip(id,index,path)});}
    m=apiEpisode(url.pathname);if(m){const[,id,action]=m;
     if(req.method==='PATCH'&&!action)return send(res,200,{episode:factory.edit(id,await body(req))});
     if(req.method==='POST'&&action==='render'){factory.queue(id);return send(res,202,{episode:factory.episode(id)});}

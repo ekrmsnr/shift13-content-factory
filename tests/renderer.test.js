@@ -9,6 +9,7 @@ import { createCanvas } from '@napi-rs/canvas';
 
 const renderModule = await import('../server/renderer.js').catch(() => ({}));
 const sceneModule = await import('../public/pixel-scene.js').catch(() => ({}));
+const clipModule = await import('../server/clip-renderer.js').catch(() => ({}));
 const execFileAsync = promisify(execFile);
 const episode = {
   id: 'renderer-test', title: 'Acil Toplantı', department: 'İnsan Deneyimi',
@@ -112,9 +113,9 @@ test('a local special shot replaces the chaos scene while retaining Turkish subt
   const clip = join(directory, 'shot.mp4');
   const output = join(directory, 'output');
   try {
-    await execFileAsync(process.env.FFMPEG_PATH || '/opt/homebrew/bin/ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x32c879:s=270x480:r=24:d=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', clip]);
+    await execFileAsync(process.env.FFMPEG_PATH || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=0x32c879:s=270x480:r=24:d=1', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', clip]);
     const result = await renderModule.renderEpisode(episode, output, { specialClip: clip });
-    const { stdout } = await execFileAsync(process.env.FFMPEG_PATH || '/opt/homebrew/bin/ffmpeg', ['-hide_banner', '-loglevel', 'error', '-ss', '12', '-i', join(output, result.video), '-frames:v', '1', '-vf', 'scale=270:480:flags=neighbor', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'], { encoding: 'buffer', maxBuffer: 1024 * 1024 });
+    const { stdout } = await execFileAsync(process.env.FFMPEG_PATH || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-ss', '12', '-i', join(output, result.video), '-frames:v', '1', '-vf', 'scale=270:480:flags=neighbor', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'], { encoding: 'buffer', maxBuffer: 1024 * 1024 });
     const pixel = (x, y) => [...stdout.subarray((y * 270 + x) * 3, (y * 270 + x) * 3 + 3)];
     const center = pixel(135, 210);
     assert.ok(center[1] > 160 && center[0] < 90, 'the imported green shot is visible at the chaos timestamp');
@@ -138,7 +139,7 @@ test('real 28-second render has H264 video, AAC audio, Turkish SRT and completed
     assert.equal(result.width, 1080);
     assert.equal(result.height, 1920);
     assert.deepEqual((await readdir(directory)).sort(), [result.video, result.cover, result.subtitles, result.manifest].sort());
-    const { stdout } = await execFileAsync(process.env.FFPROBE_PATH || '/opt/homebrew/bin/ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', join(directory, result.video)]);
+    const { stdout } = await execFileAsync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', join(directory, result.video)]);
     const metadata = JSON.parse(stdout);
     const video = metadata.streams.find((stream) => stream.codec_type === 'video');
     const audio = metadata.streams.find((stream) => stream.codec_type === 'audio');
@@ -160,4 +161,49 @@ test('real 28-second render has H264 video, AAC audio, Turkish SRT and completed
     assert.equal(progress.at(-1), 100);
     assert.ok(progress.every((value, index) => index === 0 || value >= progress[index - 1]));
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('a clip episode refuses to render until every scene has a video', async () => {
+  const target = { ...structuredClone(episode), mode: 'clips', sceneClips: [] };
+  await assert.rejects(
+    () => clipModule.renderClipEpisode(target, join(tmpdir(), 'shift13-missing')),
+    /Şu sahnelerin videosu eksik/,
+  );
+});
+
+test('clip mode assembles imported takes into a captioned 1080x1920 package', { skip: !process.env.RENDER_INTEGRATION }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'shift13-clips-'));
+  const output = join(directory, 'output');
+  try {
+    const scenes = [
+      { duration: 9, caption: 'Ek uyku talebiniz alınmıştır.', action: 'alarm', character: 'miro' },
+      { duration: 9, caption: 'Küçük bir operasyonel aksaklık.', action: 'chaos', character: 'kiro' },
+      { duration: 9, caption: 'TALEP ONAYLANDI. MESAİYE EKLENDİ.', action: 'stamp', character: 'vera' },
+    ];
+    const clips = [];
+    for (const [index, colour] of ['0x32c879', '0xc83232', '0x3264c8'].entries()) {
+      const clip = join(directory, `clip-${index}.mp4`);
+      // A four-second take is shorter than its nine-second scene, so looping has to cover the gap.
+      await execFileAsync(process.env.FFMPEG_PATH || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', `color=c=${colour}:s=720x1280:r=24:d=4`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', clip]);
+      clips.push(clip);
+    }
+    const target = { ...structuredClone(episode), mode: 'clips', sceneClips: clips, duration: 27, script: { hook: 'h', announcement: 'a', twist: 't', scenes } };
+    const result = await renderModule.renderEpisode(target, output);
+    assert.deepEqual((await readdir(output)).sort(), [result.video, result.cover, result.subtitles, result.manifest].sort());
+    const { stdout } = await execFileAsync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', join(output, result.video)]);
+    const metadata = JSON.parse(stdout);
+    const video = metadata.streams.find((stream) => stream.codec_type === 'video');
+    const audio = metadata.streams.find((stream) => stream.codec_type === 'audio');
+    assert.equal(video.codec_name, 'h264');
+    assert.equal(video.width, 1080);
+    assert.equal(video.height, 1920);
+    assert.equal(audio.codec_name, 'aac');
+    assert.ok(Math.abs(Number(metadata.format.duration) - 27) < 0.35, `beklenen 27 sn, gelen ${metadata.format.duration}`);
+    const manifest = JSON.parse(await readFile(join(output, result.manifest), 'utf8'));
+    assert.equal(manifest.engine, 'external-clip-assembly-v1');
+    assert.equal(manifest.scenes.length, 3);
+    assert.match(await readFile(join(output, result.subtitles), 'utf8'), /Ek uyku talebiniz/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
